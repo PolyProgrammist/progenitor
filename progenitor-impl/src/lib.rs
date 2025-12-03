@@ -66,6 +66,7 @@ pub struct GenerationSettings {
     post_hook: Option<TokenStream>,
     post_hook_async: Option<TokenStream>,
     extra_derives: Vec<String>,
+    extra_cli_bounds: Vec<String>,
 
     map_type: Option<String>,
     unknown_crates: UnknownPolicy,
@@ -74,6 +75,7 @@ pub struct GenerationSettings {
     patch: HashMap<String, TypePatch>,
     replace: HashMap<String, (String, Vec<TypeImpl>)>,
     convert: Vec<(schemars::schema::SchemaObject, String, Vec<TypeImpl>)>,
+    timeout: Option<u64>,
 }
 
 #[derive(Debug, Clone)]
@@ -166,6 +168,12 @@ impl GenerationSettings {
         self
     }
 
+    /// Additional trait bounds applied to `CliConfig` methods.
+    pub fn with_cli_bounds(&mut self, derive: impl ToString) -> &mut Self {
+        self.extra_cli_bounds.push(derive.to_string());
+        self
+    }
+
     /// Modify a type with the given name.
     /// See [typify::TypeSpaceSettings::with_patch].
     pub fn with_patch<S: AsRef<str>>(&mut self, type_name: S, patch: &TypePatch) -> &mut Self {
@@ -239,6 +247,12 @@ impl GenerationSettings {
     /// [typify::TypeSpaceSettings::with_map_type] documentation.
     pub fn with_map_type<MT: ToString>(&mut self, map_type: MT) -> &mut Self {
         self.map_type = Some(map_type.to_string());
+        self
+    }
+
+    /// Set the underlying reqwest client's timeout
+    pub fn with_timeout(&mut self, timeout: u64) -> &mut Self {
+        self.timeout = Some(timeout);
         self
     }
 }
@@ -380,6 +394,7 @@ impl Generator {
                 inner
             }
         });
+        let client_timeout = self.settings.timeout.unwrap_or(15);
 
         let client_docstring = {
             let mut s = format!("Client for {}", spec.info.title);
@@ -447,12 +462,13 @@ impl Generator {
                 ) -> Self {
                     #[cfg(not(target_arch = "wasm32"))]
                     let client = {
-                        let dur = std::time::Duration::from_secs(15);
+                        let dur = ::std::time::Duration::from_secs(#client_timeout);
 
                         reqwest::ClientBuilder::new()
                             .connect_timeout(dur)
                             .timeout(dur)
                     };
+
                     #[cfg(target_arch = "wasm32")]
                     let client = reqwest::ClientBuilder::new();
 
@@ -520,7 +536,6 @@ impl Generator {
 
         let out = quote! {
             #[allow(clippy::all)]
-            #[allow(elided_named_lifetimes)]
             impl Client {
                 #(#methods)*
             }

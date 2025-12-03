@@ -1,4 +1,4 @@
-// Copyright 2022 Oxide Computer Company
+// Copyright 2025 Oxide Computer Company
 
 use std::{
     fs::File,
@@ -51,11 +51,7 @@ fn verify_apis(openapi_file: &str) {
 
     // Positional generation.
     let mut generator = Generator::default();
-    let output = format!(
-        "{}\n{}",
-        "#![allow(elided_named_lifetimes)]",
-        generate_formatted(&mut generator, &spec),
-    );
+    let output = generate_formatted(&mut generator, &spec);
     expectorate::assert_contents(
         format!("tests/output/src/{}_positional.rs", openapi_stem),
         &output,
@@ -88,6 +84,7 @@ fn verify_apis(openapi_file: &str) {
     let mut generator = Generator::new(
         GenerationSettings::default()
             .with_interface(InterfaceStyle::Builder)
+            .with_cli_bounds("std::clone::Clone")
             .with_tag(TagStyle::Separate),
     );
     let output = generate_formatted(&mut generator, &spec);
@@ -164,6 +161,24 @@ fn test_param_collision() {
 #[test]
 fn test_cli_gen() {
     verify_apis("cli-gen.json");
+}
+
+#[test]
+fn test_nexus_with_different_timeout() {
+    const OPENAPI_FILE: &'static str = "nexus.json";
+
+    let mut in_path = PathBuf::from("../sample_openapi");
+    in_path.push(OPENAPI_FILE);
+    let openapi_stem = OPENAPI_FILE.split('.').next().unwrap().replace('-', "_");
+
+    let spec = load_api(in_path);
+
+    let mut generator = Generator::new(GenerationSettings::default().with_timeout(75));
+    let output = generate_formatted(&mut generator, &spec);
+    expectorate::assert_contents(
+        format!("tests/output/src/{}_with_timeout.rs", openapi_stem),
+        &output,
+    );
 }
 
 // TODO this file is full of inconsistencies and incorrectly specified types.

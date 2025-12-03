@@ -1,4 +1,3 @@
-#![allow(elided_named_lifetimes)]
 #[allow(unused_imports)]
 use progenitor_client::{encode_path, ClientHooks, OperationInfo, RequestBuilderExt};
 #[allow(unused_imports)]
@@ -59,8 +58,8 @@ pub mod types {
     #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
     #[serde(untagged)]
     pub enum GetThingOrThingsId {
-        Variant0(::std::string::String),
-        Variant1(::std::vec::Vec<::std::string::String>),
+        String(::std::string::String),
+        Array(::std::vec::Vec<::std::string::String>),
     }
 
     impl ::std::convert::From<&Self> for GetThingOrThingsId {
@@ -71,7 +70,7 @@ pub mod types {
 
     impl ::std::convert::From<::std::vec::Vec<::std::string::String>> for GetThingOrThingsId {
         fn from(value: ::std::vec::Vec<::std::string::String>) -> Self {
-            Self::Variant1(value)
+            Self::Array(value)
         }
     }
 
@@ -118,8 +117,8 @@ pub mod types {
     impl ::std::fmt::Display for HeaderArgAcceptLanguage {
         fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
             match *self {
-                Self::De => write!(f, "de"),
-                Self::En => write!(f, "en"),
+                Self::De => f.write_str("de"),
+                Self::En => f.write_str("en"),
             }
         }
     }
@@ -978,7 +977,7 @@ impl Client {
     pub fn new(baseurl: &str) -> Self {
         #[cfg(not(target_arch = "wasm32"))]
         let client = {
-            let dur = std::time::Duration::from_secs(15);
+            let dur = ::std::time::Duration::from_secs(15u64);
             reqwest::ClientBuilder::new()
                 .connect_timeout(dur)
                 .timeout(dur)
@@ -1022,7 +1021,6 @@ impl ClientInfo<()> for Client {
 
 impl ClientHooks<()> for &Client {}
 #[allow(clippy::all)]
-#[allow(elided_named_lifetimes)]
 impl Client {
     ///Sends a `POST` request to `/v1/control/hold`
     pub async fn control_hold<'a>(&'a self) -> Result<ResponseValue<()>, Error<()>> {

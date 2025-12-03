@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use heck::ToKebabCase;
 use openapiv3::OpenAPI;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use typify::{Type, TypeEnumVariant, TypeSpaceImpl, TypeStructPropInfo};
 
 use crate::{
@@ -79,8 +79,16 @@ impl Generator {
             path: syn::parse_str(crate_name).unwrap(),
         };
 
+        let cli_bounds: Vec<_> = self
+            .settings
+            .extra_cli_bounds
+            .iter()
+            .map(|b| syn::parse_str::<syn::Path>(b).unwrap().into_token_stream())
+            .collect();
+
         let code = quote! {
             use #crate_path::*;
+            use anyhow::Context as _;
 
             pub struct Cli<T: CliConfig> {
                 client: Client,
@@ -125,24 +133,24 @@ impl Generator {
             pub trait CliConfig {
                 fn success_item<T>(&self, value: &ResponseValue<T>)
                 where
-                    T: schemars::JsonSchema + serde::Serialize + std::fmt::Debug;
+                    T: #(#cli_bounds+)* schemars::JsonSchema + serde::Serialize + std::fmt::Debug;
                 fn success_no_item(&self, value: &ResponseValue<()>);
                 fn error<T>(&self, value: &Error<T>)
                 where
-                    T: schemars::JsonSchema + serde::Serialize + std::fmt::Debug;
+                    T: #(#cli_bounds+)* schemars::JsonSchema + serde::Serialize + std::fmt::Debug;
 
                 fn list_start<T>(&self)
                 where
-                    T: schemars::JsonSchema + serde::Serialize + std::fmt::Debug;
+                    T: #(#cli_bounds+)* schemars::JsonSchema + serde::Serialize + std::fmt::Debug;
                 fn list_item<T>(&self, value: &T)
                 where
-                    T: schemars::JsonSchema + serde::Serialize + std::fmt::Debug;
+                    T: #(#cli_bounds+)* schemars::JsonSchema + serde::Serialize + std::fmt::Debug;
                 fn list_end_success<T>(&self)
                 where
-                    T: schemars::JsonSchema + serde::Serialize + std::fmt::Debug;
+                    T: #(#cli_bounds+)* schemars::JsonSchema + serde::Serialize + std::fmt::Debug;
                 fn list_end_error<T>(&self, value: &Error<T>)
                 where
-                    T: schemars::JsonSchema + serde::Serialize + std::fmt::Debug;
+                    T: #(#cli_bounds+)* schemars::JsonSchema + serde::Serialize + std::fmt::Debug;
 
                 #(#trait_ops)*
             }
@@ -503,12 +511,12 @@ impl Generator {
                 if let Some(value) =
                     matches.get_one::<std::path::PathBuf>("json-body")
                 {
-                    let body_txt = std::fs::read_to_string(value).unwrap();
+                    let body_txt = std::fs::read_to_string(value).with_context(|| format!("failed to read {}", value.display()))?;
                     let body_value =
                         serde_json::from_str::<#body_type_ident>(
                             &body_txt,
                         )
-                        .unwrap();
+                        .with_context(|| format!("failed to parse {}", value.display()))?;
                     request = request.body(body_value);
                 }
             }
